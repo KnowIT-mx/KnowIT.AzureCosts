@@ -1,0 +1,137 @@
+{
+  "data": [
+    {
+      "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourcegroups/rg-prod-app/providers/microsoft.compute/virtualmachines/vm-app-01",
+      "name": "vm-app-01",
+      "type": "microsoft.compute/virtualmachines",
+      "resourceGroup": "rg-prod-app",
+      "location": "eastus",
+      "tags": {
+        "CostCenter": "IT-100",
+        "Owner": "pepe",
+        "Environment": "prod"
+      }
+    },
+    {
+      "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourcegroups/rg-prod-app/providers/microsoft.compute/virtualmachines/vm-app-02",
+      "name": "vm-app-02",
+      "type": "microsoft.compute/virtualmachines",
+      "resourceGroup": "rg-prod-app",
+      "location": "eastus",
+      "tags": {
+        "CostCenter": "IT-100",
+        "Owner": "pepe",
+        "Environment": "prod"
+      }
+    },
+    {
+      "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourcegroups/rg-prod-app/providers/microsoft.storage/storageaccounts/st-prod-assets",
+      "name": "st-prod-assets",
+      "type": "microsoft.storage/storageaccounts",
+      "resourceGroup": "rg-prod-app",
+      "location": "eastus",
+      "tags": {
+        "CostCenter": "IT-100",
+        "Owner": "pepe"
+      }
+    },
+    {
+      "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourcegroups/rg-prod-db/providers/microsoft.sql/servers/databases/sql-erp-prod",
+      "name": "sql-erp-prod",
+      "type": "microsoft.sql/servers/databases",
+      "resourceGroup": "rg-prod-db",
+      "location": "eastus",
+      "tags": null
+    },
+    {
+      "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourcegroups/rg-prod-db/providers/microsoft.sql/servers/databases/sql-erp-staging",
+      "name": "sql-erp-staging",
+      "type": "microsoft.sql/servers/databases",
+      "resourceGroup": "rg-prod-db",
+      "location": "eastus",
+      "tags": {
+        "CostCenter": "IT-100",
+        "Owner": "",
+        "Environment": "staging"
+      }
+    },
+    {
+      "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourcegroups/rg-dev/providers/microsoft.compute/virtualmachines/vm-dev-01",
+      "name": "vm-dev-01",
+      "type": "microsoft.compute/virtualmachines",
+      "resourceGroup": "rg-dev",
+      "location": "centralus",
+      "tags": {
+        "CostCenter": "IT-200",
+        "Owner": "equipo-dev",
+        "Environment": "dev"
+      }
+    },
+    {
+      "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourcegroups/rg-dev/providers/microsoft.storage/storageaccounts/st-dev-scratch",
+      "name": "st-dev-scratch",
+      "type": "microsoft.storage/storageaccounts",
+      "resourceGroup": "rg-dev",
+      "location": "centralus",
+      "tags": null
+    },
+    {
+      "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourcegroups/rg-red/providers/microsoft.network/networkinterfaces/nic-app-01",
+      "name": "nic-app-01",
+      "type": "microsoft.network/networkinterfaces",
+      "resourceGroup": "rg-red",
+      "location": "eastus",
+      "tags": null
+    },
+    {
+      "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourcegroups/rg-backup/providers/microsoft.recoveryservices/vaults/rsv-principal",
+      "name": "rsv-principal",
+      "type": "microsoft.recoveryservices/vaults",
+      "resourceGroup": "rg-backup",
+      "location": "eastus",
+      "tags": {
+        "CostCenter": "IT-100",
+        "Owner": "pepe",
+        "Environment": "prod"
+      }
+    },
+    {
+      "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourcegroups/rg-red/providers/microsoft.network/networksecuritygroups/nsg-app",
+      "name": "nsg-app",
+      "type": "microsoft.network/networksecuritygroups",
+      "resourceGroup": "rg-red",
+      "location": "eastus",
+      "tags": null
+    },
+    {
+      "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourcegroups/rg-red/providers/microsoft.network/publicipaddresses/pip-legacy",
+      "name": "pip-legacy",
+      "type": "microsoft.network/publicipaddresses",
+      "resourceGroup": "rg-red",
+      "location": "eastus",
+      "tags": {
+        "Owner": "pepe"
+      }
+    },
+    {
+      "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourcegroups/rg-prod-app/providers/microsoft.compute/disks/disk-huerfano-01",
+      "name": "disk-huerfano-01",
+      "type": "microsoft.compute/disks",
+      "resourceGroup": "rg-prod-app",
+      "location": "eastus",
+      "tags": null
+    },
+    {
+      "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourcegroups/rg-dev/providers/microsoft.keyvault/vaults/kv-dev",
+      "name": "kv-dev",
+      "type": "microsoft.keyvault/vaults",
+      "resourceGroup": "rg-dev",
+      "location": "centralus",
+      "tags": {
+        "CostCenter": "IT-200",
+        "Owner": "equipo-dev",
+        "Environment": "dev"
+      }
+    }
+  ]
+}

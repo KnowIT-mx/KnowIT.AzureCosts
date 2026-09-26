@@ -1,0 +1,17 @@
+# Building artifacts and stage folders
+bin
+obj
+artifacts
+stage
+out
+
+# Local environment files
+.env
+
+# Datos reales de suscripciones: nada de esto entra al repo.
+salidas/
+*.xlsx
+detalle-*.csv
+
+# macOS
+.DS_Store
