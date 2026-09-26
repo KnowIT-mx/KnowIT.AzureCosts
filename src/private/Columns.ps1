@@ -1,60 +1,64 @@
 # Orden = preferencia. FOCUS primero, esquema legacy (ActualCost/AmortizedCost) despues.
-# La Cost Details API entrega el legacy, con nombres en camelCase: la busqueda no distingue
+# La Cost Details API entrega el legacy con nombres en camelCase: la busqueda no distingue
 # mayusculas.
-$script:CandidatasColumnas = [ordered]@{
-    resource_id    = 'ResourceId', 'InstanceId', 'InstanceName'
-    resource_name  = , 'ResourceName'
-    resource_type  = 'ResourceType', 'ConsumedService', 'MeterCategory'
-    resource_group = 'x_ResourceGroupName', 'ResourceGroup', 'ResourceGroupName'
-    servicio       = 'ServiceName', 'MeterCategory', 'ConsumedService'
-    charge         = 'ChargeCategory', 'ChargeType'
-    region         = 'RegionName', 'RegionId', 'ResourceLocation', 'MeterRegion'
-    tags           = , 'Tags'
+$script:ColumnCandidates = [ordered]@{
+    ResourceId    = 'ResourceId', 'InstanceId', 'InstanceName'
+    ResourceName  = , 'ResourceName'
+    ResourceType  = 'ResourceType', 'ConsumedService', 'MeterCategory'
+    ResourceGroup = 'x_ResourceGroupName', 'ResourceGroup', 'ResourceGroupName'
+    Service       = 'ServiceName', 'MeterCategory', 'ConsumedService'
+    Charge        = 'ChargeCategory', 'ChargeType'
+    Location      = 'RegionName', 'RegionId', 'ResourceLocation', 'MeterRegion'
+    Tags          = , 'Tags'
     # EffectiveCost es el amortizado en FOCUS; para atribucion mensual es el correcto.
-    costo          = 'EffectiveCost', 'BilledCost', 'CostInBillingCurrency', 'Cost', 'PreTaxCost', 'CostInUSD'
-    moneda         = 'BillingCurrency', 'BillingCurrencyCode', 'Currency'
+    Cost          = 'EffectiveCost', 'BilledCost', 'CostInBillingCurrency', 'Cost', 'PreTaxCost', 'CostInUSD'
+    Currency      = 'BillingCurrency', 'BillingCurrencyCode', 'Currency'
+    Date          = 'ChargePeriodStart', 'Date', 'UsageDate'
 }
+
+# La Cost Details API entrega MM/dd/yyyy; FOCUS, ISO 8601 con zona.
+$script:DateFormats = [string[]]@('MM/dd/yyyy', 'M/d/yyyy', 'yyyy-MM-dd', 'yyyy-MM-ddTHH:mm:ssK', 'yyyy-MM-ddTHH:mm:ss')
 
 function NewColumnMap ([string[]]$Headers)
 {
     # Hashtable de PowerShell: llaves sin distinguir mayusculas.
-    $indice = @{}
-    foreach($h in $Headers) {
-        if(!$indice.ContainsKey($h)) { $indice[$h] = $h }
+    $index = @{}
+    foreach($header in $Headers) {
+        if(!$index.ContainsKey($header)) { $index[$header] = $header }
     }
-    $mapa = @{}
-    foreach($campo in $script:CandidatasColumnas.Keys) {
-        $mapa[$campo] = $null
-        foreach($candidata in $script:CandidatasColumnas[$campo]) {
-            if($indice.ContainsKey($candidata)) {
-                $mapa[$campo] = $indice[$candidata]
+    $map = @{}
+    foreach($field in $script:ColumnCandidates.Keys) {
+        $map[$field] = $null
+        foreach($candidate in $script:ColumnCandidates[$field]) {
+            if($index.ContainsKey($candidate)) {
+                $map[$field] = $index[$candidate]
                 break
             }
         }
     }
-    $mapa
+    $map
 }
 
 function ConvertFromTagsText ([string]$Text)
 {
     # FOCUS entrega Tags como JSON: {"Owner":"pepe"}
-    # El export legacy lo entrega SIN llaves: "Owner": "pepe", "Env": "prod"
+    # El export legacy a veces lo entrega SIN llaves: "Owner": "pepe", "Env": "prod"
     # Esta diferencia es la causa clasica de reportar todo como sin etiquetar.
     $tags = @{}
     if([string]::IsNullOrWhiteSpace($Text)) { return $tags }
 
-    $texto = $Text.Trim()
-    if(!$texto.StartsWith('{')) { $texto = "{$texto}" }
+    $json = $Text.Trim()
+    if(!$json.StartsWith('{')) { $json = "{$json}" }
     try {
-        $datos = ConvertFrom-Json $texto -AsHashtable -ErrorAction Stop
+        $data = ConvertFrom-Json $json -AsHashtable -ErrorAction Stop
     }
     catch {
         return $tags
     }
-    if($datos -isnot [System.Collections.IDictionary]) { return $tags }
+    if($data -isnot [System.Collections.IDictionary]) { return $tags }
 
-    foreach($k in $datos.Keys) {
-        $tags[[string]$k] = "$($datos[$k])"
+    foreach($key in $data.Keys) {
+        $tags[[string]$key] = "$($data[$key])"
     }
     return $tags
 }
@@ -63,9 +67,39 @@ function ConvertToCostNumber ([string]$Text)
 {
     # InvariantCulture: el CSV usa punto decimal y a veces notacion cientifica, sin
     # importar la configuracion regional de la maquina.
-    $valor = 0.0
-    if([double]::TryParse($Text, [Globalization.NumberStyles]::Float, [cultureinfo]::InvariantCulture, [ref]$valor)) {
-        return $valor
+    $value = 0.0
+    if([double]::TryParse($Text, [Globalization.NumberStyles]::Float, [cultureinfo]::InvariantCulture, [ref]$value)) {
+        return $value
     }
     return 0.0
+}
+
+function ConvertToUsageDate ([string]$Text)
+{
+    # AdjustToUniversal: sin el, '2026-08-01T00:00:00Z' en Mexico se vuelve 31 de julio.
+    $styles = [Globalization.DateTimeStyles]::AssumeUniversal -bor [Globalization.DateTimeStyles]::AdjustToUniversal
+    $value = [datetime]::MinValue
+    if([datetime]::TryParseExact($Text.Trim(), $script:DateFormats, [cultureinfo]::InvariantCulture, $styles, [ref]$value)) {
+        return $value.Date
+    }
+    return $null
+}
+
+function ReadCostRows ([string[]]$Path)
+{
+    # Devuelve @{ Rows; Headers }. Los parts de un mismo reporte comparten esquema; entre
+    # meses podria cambiar, asi que los encabezados son la union en orden de aparicion.
+    $rows = [System.Collections.Generic.List[object]]::new()
+    $headers = [System.Collections.Generic.List[string]]::new()
+    $seen = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach($file in $Path) {
+        $batch = Import-Csv -Path $file -Encoding utf8
+        if($batch) {
+            foreach($name in $batch[0].PSObject.Properties.Name) {
+                if($seen.Add($name)) { $headers.Add($name) }
+            }
+        }
+        foreach($row in $batch) { $rows.Add($row) }
+    }
+    @{ Rows = $rows; Headers = @($headers) }
 }

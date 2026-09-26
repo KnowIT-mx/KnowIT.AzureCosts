@@ -7,10 +7,20 @@ de Microsoft que **no hay que volver a investigar**.
 
 ## Qué es
 
-Módulo de PowerShell **standalone** que genera un .xlsx con el costo mensual de
-una suscripción de Azure y, sobre todo, qué recursos están sin etiquetar y
-cuánto gastan, para personal financiero. No es un dashboard. Se publicará en
-PSGallery.
+Módulo de PowerShell **standalone** de consulta y análisis de costos de Azure:
+una versión "curada" de Az.CostManagement, igual de agnóstica pero fácil de
+usar. Los comandos devuelven objetos y siguen la filosofía de PowerShell (cada
+comando hace una cosa; exportar, agrupar o convertir se hace con los comandos
+nativos por pipeline). Es la base de aplicaciones más específicas, que viven en
+sus propios repos. Se publicará en PSGallery.
+
+Comandos públicos (prefijo `KnowITAzCosts`): `Get-KnowITAzCostsResourceInventory`,
+`Get-KnowITAzCostsDetail`, `Export-KnowITAzCostsRaw`, `Clear-KnowITAzCostsCache`.
+
+**Única dependencia externa: Az.Accounts** (sesión, suscripciones delegadas,
+tokens). No agregues otra sin preguntar. **No agregues parámetros `-OutFile`
+a los `Get-*`:** el pipeline con `Export-Csv`/`ConvertTo-Json` ya lo resuelve;
+solo `Export-*` escribe archivos.
 
 **El módulo no conoce a quien lo consume.** Ninguna aplicación, Function App,
 cliente ni forma de acceso particular se menciona en el código ni en la
@@ -34,16 +44,44 @@ otra:
 - Codigo y nombre de variables en ingles: variables locales camelCase ($detailData) y variables a nivel script PascalCase ($script:SubscriptionsCache)
 - Comentarios y mensajes hacia el usuario en español.
 - Pruebas en `tests/`, fuera de `src/` para que no se empaqueten.
+- Referencia de comandos en `docs/`, una página por cmdlet al estilo de Microsoft
+  Learn (formato PlatyPS) más `about_KnowIT.AzureCosts.md`. **Al cambiar un
+  parámetro, actualiza su página y la ayuda comment-based del cmdlet.** La
+  sintaxis y los metadatos de cada parámetro se sacan de `Get-Command`, no a mano.
 
 ## Decisiones tomadas y por qué
 
 **Cost Details API, no el export nativo.** Se genera a demanda, sin crear
 storage ni exports en la suscripción.
 
-**`Get-CostDetail` guarda los CSV y todo lo demás trabaja sobre ellos.** La
-API está limitada (~1 consulta al día). Regenerar con otros tags o sacar la
-plantilla no debe volver a consultarla. `Get-ResourceInventory -OutFile` hace
-lo mismo con el inventario.
+**Caché local transparente en `~/.Azure/KnowIT.AzureCosts/<suscripción>/`.** La
+API está limitada (~1 consulta al día por suscripción) y no filtra por resource
+group, así que ante un faltante se descarga el mes completo de la suscripción y
+todos los filtros se aplican localmente. Cada usuario tiene el suyo; un caché
+compartido queda para después. Vigencias: mes cerrado permanente si se
+descargó ≥5 días después del cierre; mes en curso o recién cerrado, 24 h;
+inventario, un archivo por día (se borran los de días anteriores). `-Force`
+ignora el caché. Cada mes tiene un manifiesto JSON que se escribe al final: un
+CSV sin manifiesto es una descarga interrumpida y no cuenta.
+
+**Tags: cuáles usa cada comando.** Inventario: los de hoy. `Detail`: los de hoy
+si el recurso existe (son los que alguien va a corregir), si no los del cargo.
+`Raw`: los del día del cargo; `-TagsFromInventory` usa los de hoy. `-Untagged`
+es "sin ningún tag" y excluye a `-ResourceGroup` y `-Tag`. `Tags` es hashtable
+(para filtrar); `-TagsAsJson` (inventario y `Detail`) la convierte al final en
+JSON compacto con llaves en orden ordinal, porque `Export-Csv` escribe
+`System.Collections.Hashtable`. Columnas de tags con
+el nombre tal cual; solo si chocan con una propiedad o columna se les antepone
+`tag_`.
+
+**Periodos.** `-Month` (alias `-Period`, varios meses) o `-StartDate`/`-EndDate`.
+`Detail` devuelve una fila por recurso por mes. `-SubscriptionId` es obligatorio
+en `Detail`/`Raw` (cada suscripción es una llamada a la API que tarda minutos)
+y opcional en el inventario (sin él, todas las accesibles: ARG es barato).
+
+**Autocompletado de `-Tag` y `-TagColumn` con `Register-ArgumentCompleter`**,
+no con `[ArgumentCompleter()]`: en el módulo compilado el scriptblock del
+atributo no queda ligado al módulo y no ve las funciones privadas.
 
 **El cruce entre costos e inventario es por ResourceId en minúsculas.** ARG
 devuelve `/resourcegroups/` en minúsculas; el detalle usa `/resourceGroups/`.
@@ -65,25 +103,28 @@ que distinga.
 
 **Pipelines y triggers de Data Factory se suman a su factory** y toman sus
 tags. Tienen ResourceId propio con costo pero ARG no los inventaría. Es una
-lista explícita (`SubrecursosAlPadre`), no una regla genérica: una base SQL
+lista explícita (`ChildToParentTypes`), no una regla genérica: una base SQL
 que no está en ARG es una base borrada y debe seguir visible como tal.
 
-**La portada del Excel advierte que los montos pueden no cuadrar con la
-factura.** Sin ese aviso, finanzas compara contra la factura y concluye que el
-reporte está mal. El texto es genérico porque la diferencia depende del
-contrato (en CSP: precio retail sin descuentos del partner) y el módulo no la
-puede deducir del CSV. No quites el aviso.
-
-**ImportExcel 7.x (EPPlus 4.5.3.x, LGPL).** EPPlus 5+ exige licencia comercial:
-en un entregable para terceros es un problema legal. `KnowIT.Builder` no
-soporta topes de versión en `ExternalModules` (escribe
-`System.Collections.Hashtable` en `ExternalModuleDependencies`), así que el
-`.psm1` revisa al cargar la versión de EPPlus y se detiene si es 5 o mayor.
-Los anchos de columna se calculan a mano porque el autoajuste de EPPlus
-necesita GDI+, que no hay en Linux ni en macOS sin `libgdiplus`.
+**El export crudo escribe el CSV directo** con `StreamWriter`, en el mismo
+formato que `Export-Csv`: crear un PSCustomObject por fila (20 mil filas × 60
+columnas en un mes real) es varias veces más lento.
 
 **Orden ordinal (`SortOrdinal`) donde el orden importa.** `Sort-Object` usa
 reglas de la cultura y ordena distinto según la máquina.
+
+**Trampas de PowerShell que ya mordieron:**
+- Una variable local `$resourceGroup` es la misma que el parámetro
+  `-ResourceGroup` (no distingue mayúsculas) y pisa el filtro.
+- `Nullable[datetime]` se desenvuelve solo: `.Value` devuelve `$null`.
+- `"texto".StartsWith("`0")` es verdadero siempre con comparación cultural
+  (ICU ignora el nulo): usar `[StringComparison]::Ordinal`.
+- `$null | ForEach-Object` corre una vez; usar `foreach` cuando la colección
+  puede ser nula.
+- `Update-CallerPreference` (helper estándar) busca la llave `Warning` y no
+  `WarningAction`, así que `-WarningAction` no surte efecto; y su
+  `Set-Variable` obedece `-WhatIf` (por eso `Clear-KnowITAzCostsCache` apaga
+  `$WhatIfPreference` mientras lo llama).
 
 **`-ErrorVariable` no sirve para contar errores en las pruebas.** También junta
 los que la función atrapa en su propio `try/catch`. Las pruebas cuentan los
@@ -95,10 +136,10 @@ auxiliar.
 
 | Componente | Estado |
 |---|---|
-| Análisis y Excel | Idénticos celda por celda a una implementación de referencia validada de forma independiente, sobre datos reales (agosto 2026) |
-| `tests/Verificar.ps1` | 51 verificaciones sobre datos sintéticos, pasan |
-| `tests/Probar-Azure.ps1` | Pasan contra una suscripción CSP real con acceso delegado: más de 1,400 recursos con paginación correcta; detalle de julio 2026 descargado de punta a punta (202, sondeo, manifiesto, CSV de 21 MB) y reporte generado |
-| Compilado con `dev-build.ps1` | Importa por nombre, exporta 5 funciones, genera el reporte |
+| `tests/Verificar.ps1` | 92 verificaciones con datos sintéticos en un caché temporal, sin Azure; esperados calculados por separado. Pasan |
+| `tests/Probar-Azure.ps1` | Pasa contra una suscripción CSP real con acceso delegado (sept 2026): ~1,500 recursos con paginación correcta, 17 suscripciones sin `-SubscriptionId`, detalle desde caché cuadra con los totales ya validados, export crudo de 20,709 filas en ~2 s y suma igual que el detalle |
+| Descarga de la Cost Details API | Probada de punta a punta en la iteración anterior (202, sondeo, manifiesto, CSV de 21 MB); la lógica pasó igual a `SaveCostDetailReport` |
+| Compilado con `dev-build.ps1` | Importa por nombre, exporta los 4 comandos, autocompletado funciona |
 
 ## Hechos ya verificados — no re-investigar
 
@@ -123,8 +164,8 @@ auxiliar.
 - Roles: Reader `acdd72a7-3385-48ef-bd42-f606fba81ae7`,
   Cost Management Reader `72fafb9e-0641-4937-9268-a91bfd8191a3`,
   Tag Contributor `4a9ae827-6dc8-4573-8ac7-8239d42aa03f`.
-- ImportExcel 7.8.10 (la más reciente en PSGallery a septiembre 2026) trae
-  EPPlus 4.5.3.2. `Install-PSResource -Version '[7.8,8.0)'` acepta rangos NuGet.
+- CSV real de la Cost Details API (CSP): fecha `MM/dd/yyyy`, resource group
+  en `resourceGroupName`, tags como JSON con llaves.
 
 ## Convenciones
 
@@ -133,4 +174,4 @@ auxiliar.
   `Connect-AzAccount` (usuario o managed identity).
 - Antes de sugerir un comando o parámetro de Azure, verifícalo. Por eso hay
   una sección de hechos verificados.
-- Datos reales solo en `salidas/`, que git ignora.
+- Datos reales solo en `salidas/` o en el caché, nunca en el repo.

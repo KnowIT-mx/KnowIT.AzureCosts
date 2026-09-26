@@ -5,15 +5,15 @@ function SortOrdinal
     # maquinas con distinta configuracion regional.
     param([object[]]$Items, [scriptblock]$Key = { $_ })
 
-    $pares = [Tuple[string, int][]]::new($Items.Count)
+    $pairs = [Tuple[string, int][]]::new($Items.Count)
     for($i = 0; $i -lt $Items.Count; $i++) {
         $_ = $Items[$i]
-        $pares[$i] = [Tuple]::Create([string](& $Key), $i)
+        $pairs[$i] = [Tuple]::Create([string](& $Key), $i)
     }
-    [Array]::Sort($pares, [Comparison[Tuple[string, int]]] {
+    [Array]::Sort($pairs, [Comparison[Tuple[string, int]]] {
         param($a, $b)
-        $c = [string]::CompareOrdinal($a.Item1, $b.Item1)
-        $c ? $c : $a.Item2.CompareTo($b.Item2)
+        $result = [string]::CompareOrdinal($a.Item1, $b.Item1)
+        $result ? $result : $a.Item2.CompareTo($b.Item2)
     })
-    foreach($p in $pares) { $Items[$p.Item2] }
+    foreach($pair in $pairs) { $Items[$pair.Item2] }
 }

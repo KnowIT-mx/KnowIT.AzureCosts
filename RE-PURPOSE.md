@@ -37,4 +37,6 @@ con parametros o comandos auxiliares para exportar a otros formatos (Ej. Export-
 - Export-KnowITAzCostsRaw (Este si es el mayor detalle proporcionado por el API (daily by resorce))
 
 
-** Manejo de cache (anotado por pepe) **
+## Manejo de cache (anotado por pepe)
+
+Cuando se invoquen los comandos principales, parte de la lógica del sistema debe verificar si los archivos completos, tanto el de infraestructura que hoy se llama inventario-suscripcion-fecha.json como el detalle-suscripcion-mes.csv ya se encuentren descargados localmente. En caso de no encontrarse descargados será necesario primero descargarlos completos, un arhivo de toda la infraestructura de la suscripción y el archivo de detalle de todo el mes que se trabajará. Estos archivos podrán ser almacenados en el folder de trabajo de Azure local de la computadora, para windows es c:\users\usuario\.azure y para mac es /users/usuario/.Azure
