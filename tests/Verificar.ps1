@@ -189,7 +189,59 @@ try {
     Check 'factory borrada sin filas propias hereda tags de sus hijos' $g.Tags['Owner'] 'dwh'
     Check 'base SQL borrada NO se suma a su servidor' @($adf | Where-Object ResourceName -eq 'temp-01').Count 1
     Check 'el total no cambia' ($adf | Measure-Object Cost -Sum).Sum 25.0
+    $adfSplit = @(Get-KnowITAzCostsDetail -Month 2026-08 -SubscriptionId $subAdf -SplitByTagChange)
+    $f = @($adfSplit | Where-Object ResourceName -eq 'adf-1')
+    Check 'split: pipeline y trigger siguen los tags de la factory ese dia' "$($f.Count) $($f[0].Tags['Environment'])=$($f[0].Cost)" '1 Prod=13'
+    Check 'split: factory borrada sin filas propias usa los tags del hijo' ($adfSplit | Where-Object ResourceName -eq 'adf-borrada').Tags['Owner'] 'dwh'
     Check 'varias suscripciones en una llamada' @(Get-KnowITAzCostsDetail -Month 2026-08 -SubscriptionId $sub, $subAdf | Select-Object -ExpandProperty SubscriptionId -Unique).Count 2
+
+    # --- tags que cambian dentro del mes -----------------------------------------------------
+    Write-Host "`n--- tags que cambian dentro del mes ---"
+    $subTags = '33333333-4444-5555-6666-777777777777'
+    $base = "/subscriptions/$subTags/resourceGroups/RG-T/providers/Microsoft.Compute/virtualMachines"
+    $row = { param($name, $day, $cost, $tags) [PSCustomObject]@{ ResourceId = "$base/$name"; ResourceName = $name; Date = "2026-08-{0:d2}" -f $day; CostInBillingCurrency = "$cost"; Tags = $tags } }
+    $rows = @(
+        # vm-hoy: existe hoy con tags; en el mes tuvo Viejo (dias 1-10) y Nuevo (11-20), y el
+        # dia 15 viene sin tags, como pasa en el detalle real.
+        foreach($d in 1..10) { & $row 'vm-hoy' $d 1 '{"Env":"Viejo"}' }
+        foreach($d in 11..20) { & $row 'vm-hoy' $d 2 ($d -eq 15 ? '' : '{"Env":"Nuevo"}') }
+        # vm-sin-tags-hoy: existe hoy sin tags, pero en el mes si los tuvo.
+        & $row 'vm-sin-tags-hoy' 3 5 '{"Env":"Prod"}'
+        # vm-borrada: filas fuera de orden, como las entrega la API: el ultimo tag es el del dia 20.
+        & $row 'vm-borrada' 20 4 '{"Env":"Ultimo"}'
+        & $row 'vm-borrada' 5 3 '{"Env":"Primero"}'
+        # vm-tardia: borrada, sin tags los primeros dias y etiquetada despues.
+        foreach($d in 1..3) { & $row 'vm-tardia' $d 1 '' }
+        & $row 'vm-tardia' 4 1 '{"Env":"X"}'
+    )
+    $csv = New-NoCsv $rows
+    Set-CachedCost $subTags 'ActualCost' '2026-08' $csv
+    Remove-Item $csv
+    Set-CachedInventory $subTags @(
+        @{ id = "$base/vm-hoy".ToLowerInvariant(); name = 'vm-hoy'; type = 'microsoft.compute/virtualmachines'; resourceGroup = 'rg-t'; location = 'eastus'; subscriptionId = $subTags; tags = @{ Env = 'Hoy' } }
+        @{ id = "$base/vm-sin-tags-hoy".ToLowerInvariant(); name = 'vm-sin-tags-hoy'; type = 'microsoft.compute/virtualmachines'; resourceGroup = 'rg-t'; location = 'eastus'; subscriptionId = $subTags; tags = @{} }
+    )
+
+    $default = @(Get-KnowITAzCostsDetail -Month 2026-08 -SubscriptionId $subTags)
+    $byName = @{}; foreach($d in $default) { $byName[$d.ResourceName] = $d }
+    Check 'sin split: una fila por recurso' $default.Count 4
+    Check 'existe hoy con tags: manda el de hoy' $byName['vm-hoy'].Tags['Env'] 'Hoy'
+    Check 'existe hoy sin tags: se queda sin tags' $byName['vm-sin-tags-hoy'].Tags.Count 0
+    Check 'borrado: el ultimo por fecha, no por orden de fila' $byName['vm-borrada'].Tags['Env'] 'Ultimo'
+    Check 'sin split no agrega FirstDate' ([bool]$default[0].PSObject.Properties['FirstDate']) $false
+
+    $split = @(Get-KnowITAzCostsDetail -Month 2026-08 -SubscriptionId $subTags -SplitByTagChange)
+    $hoy = @($split | Where-Object ResourceName -eq 'vm-hoy' | Sort-Object { $_.Tags['Env'] })
+    Check 'split: una fila por juego de tags, dia sin tags incluido' $hoy.Count 3
+    Check 'split: usa los tags historicos aunque exista hoy' (($hoy | ForEach-Object { "$($_.Tags['Env'])=$($_.Cost)" }) -join ',') '=2,Nuevo=18,Viejo=10'
+    Check 'split: el dia sin tags es su propio segmento' "$($hoy[0].FirstDate.ToString('dd'))-$($hoy[0].LastDate.ToString('dd'))" '15-15'
+    Check 'split: FirstDate y LastDate de un juego' "$($hoy[1].FirstDate.ToString('dd'))-$($hoy[1].LastDate.ToString('dd'))" '11-20'
+    Check 'split: borrado con dos tags' @($split | Where-Object ResourceName -eq 'vm-borrada').Count 2
+    $late = @($split | Where-Object ResourceName -eq 'vm-tardia' | Sort-Object FirstDate)
+    Check 'split: dias iniciales sin tags son otro segmento' (($late | ForEach-Object { "$($_.Tags['Env'])=$($_.Cost)" }) -join ',') '=3,X=1'
+    Check 'sin split: borrado toma el ultimo con valor' $byName['vm-tardia'].Tags['Env'] 'X'
+    Check 'split: el total no cambia' ($split | Measure-Object Cost -Sum).Sum ($default | Measure-Object Cost -Sum).Sum
+    Check 'split: se puede filtrar por el tag historico' @(Get-KnowITAzCostsDetail -Month 2026-08 -SubscriptionId $subTags -SplitByTagChange -Tag @{ Env = 'Viejo' }).Count 1
 
     # --- export crudo ------------------------------------------------------------------------
     Write-Host "`n--- Export-KnowITAzCostsRaw ---"

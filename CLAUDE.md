@@ -64,8 +64,14 @@ inventario, un archivo por día (se borran los de días anteriores). `-Force`
 ignora el caché. Cada mes tiene un manifiesto JSON que se escribe al final: un
 CSV sin manifiesto es una descarga interrumpida y no cuenta.
 
-**Tags: cuáles usa cada comando.** Inventario: los de hoy. `Detail`: los de hoy
-si el recurso existe (son los que alguien va a corregir), si no los del cargo.
+**Tags: cuáles usa cada comando.** Inventario: los de hoy. `Detail` sin split
+muestra el tag "más actualizado": si el recurso existe, los de hoy **aunque esté
+sin tags**; si fue borrado, los últimos con valor del periodo **por fecha** (la
+API no entrega las filas en orden: el CSV real empieza el 31 y termina el 19).
+`-SplitByTagChange`: una fila por juego de tags histórico, con
+`FirstDate`/`LastDate`; los días sin tags son un juego más y sí parten el
+recurso (decisión explícita); los hijos de Data Factory siguen los tags que su
+factory tuvo ese día.
 `Raw`: los del día del cargo; `-TagsFromInventory` usa los de hoy. `-Untagged`
 es "sin ningún tag" y excluye a `-ResourceGroup` y `-Tag`. `Tags` es hashtable
 (para filtrar); `-TagsAsJson` (inventario y `Detail`) la convierte al final en
@@ -136,7 +142,7 @@ auxiliar.
 
 | Componente | Estado |
 |---|---|
-| `tests/Verificar.ps1` | 92 verificaciones con datos sintéticos en un caché temporal, sin Azure; esperados calculados por separado. Pasan |
+| `tests/Verificar.ps1` | 108 verificaciones con datos sintéticos en un caché temporal, sin Azure; esperados calculados por separado. Pasan |
 | `tests/Probar-Azure.ps1` | Pasa contra una suscripción CSP real con acceso delegado (sept 2026): ~1,500 recursos con paginación correcta, 17 suscripciones sin `-SubscriptionId`, detalle desde caché cuadra con los totales ya validados, export crudo de 20,709 filas en ~2 s y suma igual que el detalle |
 | Descarga de la Cost Details API | Probada de punta a punta en la iteración anterior (202, sondeo, manifiesto, CSV de 21 MB); la lógica pasó igual a `SaveCostDetailReport` |
 | Compilado con `dev-build.ps1` | Importa por nombre, exporta los 4 comandos, autocompletado funciona |

@@ -166,8 +166,21 @@ lo deja vacío. Acepta los mismos periodos y filtros que
 | Comando | Tags |
 |---|---|
 | `Get-KnowITAzCostsResourceInventory` | Los de hoy |
-| `Get-KnowITAzCostsDetail` | Los de hoy si el recurso sigue existiendo, porque son los que alguien va a corregir; si ya no existe, los que tenía cuando generó el cargo |
+| `Get-KnowITAzCostsDetail` | Ver la tabla siguiente |
 | `Export-KnowITAzCostsRaw` | Los que tenía el recurso el día del cargo. Con `-TagsFromInventory`, los de hoy para los recursos que siguen existiendo |
+
+En `Get-KnowITAzCostsDetail`:
+
+| Caso | Sin `-SplitByTagChange`: una fila por recurso | Con `-SplitByTagChange`: una fila por juego de tags |
+|---|---|---|
+| El recurso existe hoy con tags | Los tags de hoy | Los tags que tuvo cada día del periodo |
+| El recurso existe hoy sin tags | Sin tags | Los tags que tuvo cada día del periodo |
+| El recurso fue borrado | Los últimos tags con valor del periodo | Los tags que tuvo cada día del periodo |
+| Días en que el detalle viene sin tags | No cuentan | Forman su propia fila, sin tags |
+| Pipelines y triggers de Data Factory | Se suman a su factory | Llevan los tags que la factory tuvo ese día; si la factory no tiene cargos ese día, los suyos |
+
+Con `-SplitByTagChange` cada fila trae además `FirstDate` y `LastDate`: el primer
+y el último día con ese juego de tags. El costo total es el mismo en ambos modos.
 
 Los nombres de tag no distinguen mayúsculas, como en Azure. Un tag con valor
 vacío no cuenta como etiquetado.
