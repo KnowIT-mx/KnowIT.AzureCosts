@@ -11,8 +11,8 @@ foreach($scriptFile in Get-ChildItem $sourceFolders -Filter '*.ps1' -Recurse) {
 
 $script:ArmEndpoint = 'https://management.azure.com'
 
-# Junto a los archivos de Az (tokens, contextos): el mismo lugar que el usuario ya asocia con
-# su sesion de Azure, y persiste entre reinicios.
-$script:CacheRoot = Join-Path $HOME '.Azure' 'KnowIT.AzureCosts'
+# En el perfil del usuario, en carpeta .knowit persistiendo reinicios
+# donde cada modulo KnowIT tiene su propia subcarpeta.
+$script:CacheRoot = Join-Path $HOME '.knowit' 'KnowIT.AzureCosts'
 
 #endregion

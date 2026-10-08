@@ -40,11 +40,11 @@ Customer Agreement (incluye CSP). Pay-as-you-go no está soportado.
 
 ### Caché
 
-El caché vive en `~/.Azure/KnowIT.AzureCosts`, junto a los archivos de Az, con una carpeta
+El caché está en `~/.knowit/KnowIT.AzureCosts`, en el perfil del usuario, con una carpeta
 por suscripción. Cada usuario mantiene el suyo y sobrevive a reinicios.
 
 ```
-~/.Azure/KnowIT.AzureCosts/<suscripción>/
+~/.knowit/KnowIT.AzureCosts/<suscripción>/
     inventory-<yyyy-MM-dd>.json          inventario del día
     cost-<métrica>-<yyyy-MM>.json        manifiesto del mes
     cost-<métrica>-<yyyy-MM>-partN.csv   detalle tal como lo entrega la API

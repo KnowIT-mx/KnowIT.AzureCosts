@@ -5,7 +5,7 @@
 
     Verificar.ps1 cubre la logica con datos sinteticos; esto cubre lo que solo se puede
     comprobar con una sesion real: autenticacion, paginacion de Resource Graph, el ciclo
-    202/Location de la Cost Details API y el cache en ~/.Azure/KnowIT.AzureCosts.
+    202/Location de la Cost Details API y el cache en ~/.knowit/KnowIT.AzureCosts.
 
     Si el mes no esta en cache, el detalle de costos solo se descarga con -IncludeCostDetail
     porque gasta la consulta del dia (Microsoft pide <=1 por suscripcion).

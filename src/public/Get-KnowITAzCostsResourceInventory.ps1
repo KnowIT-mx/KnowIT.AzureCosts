@@ -26,7 +26,7 @@ function Get-KnowITAzCostsResourceInventory {
 
     .PARAMETER TagsAsJson
         Entrega la propiedad Tags como texto JSON compacto en vez de hashtable, lista para
-        Export-Csv: {"Environment":"Production","Owner":"pepe"}. Sin tags queda {}.
+        Export-Csv: {"Environment":"Production","Owner":"Equipo-FinOps"}. Sin tags queda {}.
 
     .PARAMETER Force
         Vuelve a consultar Resource Graph aunque el inventario de hoy ya este en cache.

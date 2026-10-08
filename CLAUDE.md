@@ -7,25 +7,34 @@ de Microsoft que **no hay que volver a investigar**.
 
 ## Qué es
 
-Módulo de PowerShell **standalone** de consulta y análisis de costos de Azure:
-una versión "curada" de Az.CostManagement, igual de agnóstica pero fácil de
-usar. Los comandos devuelven objetos y siguen la filosofía de PowerShell (cada
-comando hace una cosa; exportar, agrupar o convertir se hace con los comandos
-nativos por pipeline). Es la base de aplicaciones más específicas, que viven en
-sus propios repos. Se publicará en PSGallery.
+Módulo de PowerShell **standalone** de consulta y análisis de costos de Azure
+por suscripción, resource group, recurso y tag: una alternativa "curada" a
+Az.CostManagement, igual de agnóstica pero fácil de usar. Los comandos devuelven
+objetos y siguen la filosofía de PowerShell: cada comando hace una cosa, y
+exportar, agrupar o convertir se hace con los comandos nativos por pipeline.
+Solo lee: no crea ni modifica nada en Azure.
 
-Comandos públicos (prefijo `KnowITAzCosts`): `Get-KnowITAzCostsResourceInventory`,
-`Get-KnowITAzCostsDetail`, `Export-KnowITAzCostsRaw`, `Clear-KnowITAzCostsCache`.
+Comandos públicos (prefijo `KnowITAzCosts`):
+
+| Comando | Qué hace |
+|---|---|
+| `Get-KnowITAzCostsResourceInventory` | Recursos de una o varias suscripciones con sus tags, desde Azure Resource Graph |
+| `Get-KnowITAzCostsDetail` | Costo por recurso y por mes, desde la Cost Details API |
+| `Export-KnowITAzCostsRaw` | CSV con el detalle diario tal como lo entrega la API, con los tags en columnas |
+| `Clear-KnowITAzCostsCache` | Borra el caché local |
+
+**Es un módulo público, distribuido por PowerShell Gallery.** En el código, la
+documentación, las pruebas y este archivo no va nada de quien lo usa ni de su
+operación: ni clientes, ni suscripciones o tenants reales, ni aplicaciones que
+lo consumen, ni formas de acceso particulares. Lo único propio de KnowIT es la
+autoría del proyecto y su estándar de módulos. Los ejemplos usan valores
+genéricos (`<tenant>`, GUIDs en ceros, tags `Environment`, `Owner`, `CostCenter`).
 
 **Única dependencia externa: Az.Accounts** (sesión, suscripciones delegadas,
-tokens). No agregues otra sin preguntar. **No agregues parámetros `-OutFile`
-a los `Get-*`:** el pipeline con `Export-Csv`/`ConvertTo-Json` ya lo resuelve;
-solo `Export-*` escribe archivos.
+tokens). No agregues otra sin preguntar.
 
-**El módulo no conoce a quien lo consume.** Ninguna aplicación, Function App,
-cliente ni forma de acceso particular se menciona en el código ni en la
-documentación de este repo. Si algo solo tiene sentido para un consumidor, va
-en el repo del consumidor.
+**Solo `Export-*` escribe archivos.** No agregues parámetros `-OutFile` a los
+`Get-*`: el pipeline con `Export-Csv` o `ConvertTo-Json` ya lo resuelve.
 
 ## Estándar de módulos KnowIT
 
@@ -37,9 +46,9 @@ otra:
   `ExternalModules` se vuelve `RequiredModules` en el manifiesto compilado.
 - `run.ps1` carga el `.psm1` desde el fuente (se corre desde la raíz);
   `dev-build.ps1` compila a `out/`.
-- Funciones públicas con `[CmdletBinding()]`, `Update-CallerPreference`,
-  `try/catch` con `$PSCmdlet.WriteError`. Wrapper `Invoke-*` que devuelve un
-  objeto Response. Funciones privadas en PascalCase sin guion.
+- Funciones públicas con `[CmdletBinding()]`, `Update-CallerPreference` y
+  `try/catch` con `$PSCmdlet.WriteError`. Funciones privadas en PascalCase sin
+  guion; lanzan excepción y la pública la emite.
 - Verbos y sustantivos de las funciones públicas en inglés conforme a los estandares de PowerShell.
 - Codigo y nombre de variables en ingles: variables locales camelCase ($detailData) y variables a nivel script PascalCase ($script:SubscriptionsCache)
 - Comentarios y mensajes hacia el usuario en español.
@@ -49,77 +58,88 @@ otra:
   parámetro, actualiza su página y la ayuda comment-based del cmdlet.** La
   sintaxis y los metadatos de cada parámetro se sacan de `Get-Command`, no a mano.
 
-## Decisiones tomadas y por qué
+## Cómo funciona y por qué
 
-**Cost Details API, no el export nativo.** Se genera a demanda, sin crear
-storage ni exports en la suscripción.
+**Cost Details API, no el export nativo de Cost Management.** Se genera a
+demanda, sin crear storage ni exports en la suscripción.
 
-**Caché local transparente en `~/.Azure/KnowIT.AzureCosts/<suscripción>/`.** La
-API está limitada (~1 consulta al día por suscripción) y no filtra por resource
-group, así que ante un faltante se descarga el mes completo de la suscripción y
-todos los filtros se aplican localmente. Cada usuario tiene el suyo; un caché
-compartido queda para después. Vigencias: mes cerrado permanente si se
-descargó ≥5 días después del cierre; mes en curso o recién cerrado, 24 h;
-inventario, un archivo por día (se borran los de días anteriores). `-Force`
-ignora el caché. Cada mes tiene un manifiesto JSON que se escribe al final: un
-CSV sin manifiesto es una descarga interrumpida y no cuenta.
+**Caché local transparente en `~/.knowit/KnowIT.AzureCosts/<suscripción>/`.**
+Una carpeta propia en el perfil del usuario, no dentro de la de otra
+herramienta. La API está limitada (~1 consulta al día por suscripción) y no
+filtra por resource group, así que ante un faltante se descarga el mes completo
+de la suscripción y todos los filtros se aplican localmente. Cada usuario tiene
+su caché.
 
-**Tags: cuáles usa cada comando.** Inventario: los de hoy. `Detail` sin split
-muestra el tag "más actualizado": si el recurso existe, los de hoy **aunque esté
-sin tags**; si fue borrado, los últimos con valor del periodo **por fecha** (la
-API no entrega las filas en orden: el CSV real empieza el 31 y termina el 19).
-`-SplitByTagChange`: una fila por juego de tags histórico, con
-`FirstDate`/`LastDate`; los días sin tags son un juego más y sí parten el
-recurso (decisión explícita); los hijos de Data Factory siguen los tags que su
-factory tuvo ese día.
-`Raw`: los del día del cargo; `-TagsFromInventory` usa los de hoy. `-Untagged`
-es "sin ningún tag" y excluye a `-ResourceGroup` y `-Tag`. `Tags` es hashtable
-(para filtrar); `-TagsAsJson` (inventario y `Detail`) la convierte al final en
-JSON compacto con llaves en orden ordinal, porque `Export-Csv` escribe
-`System.Collections.Hashtable`. Columnas de tags con
-el nombre tal cual; solo si chocan con una propiedad o columna se les antepone
-`tag_`.
+| Dato | Archivo | Vigencia |
+|---|---|---|
+| Detalle de un mes | `cost-<métrica>-<yyyy-MM>-partN.csv` y su manifiesto `.json` | Permanente si se descargó ≥5 días después del cierre del mes; si no, 24 h |
+| Inventario | `inventory-<yyyy-MM-dd>.json` | El día; al guardar uno nuevo se borran los anteriores |
+
+El manifiesto se escribe al final: un CSV sin manifiesto es una descarga
+interrumpida y no cuenta. Un mes sin datos también deja manifiesto, para no
+volver a preguntar. `-Force` ignora el caché.
 
 **Periodos.** `-Month` (alias `-Period`, varios meses) o `-StartDate`/`-EndDate`.
+El caché siempre guarda meses completos; un rango recorta las filas después.
 `Detail` devuelve una fila por recurso por mes. `-SubscriptionId` es obligatorio
-en `Detail`/`Raw` (cada suscripción es una llamada a la API que tarda minutos)
+en `Detail` y `Raw` (cada suscripción es una llamada a la API que tarda minutos)
 y opcional en el inventario (sin él, todas las accesibles: ARG es barato).
 
-**Autocompletado de `-Tag` y `-TagColumn` con `Register-ArgumentCompleter`**,
-no con `[ArgumentCompleter()]`: en el módulo compilado el scriptblock del
-atributo no queda ligado al módulo y no ve las funciones privadas.
+**Tags: cuáles usa cada comando.**
+
+| Comando | Tags |
+|---|---|
+| Inventario | Los de hoy |
+| `Detail` sin split | El "más actualizado": si el recurso existe, los de hoy **aunque esté sin tags**; si fue borrado, los últimos con valor del periodo **por fecha** (la API no entrega las filas en orden de fecha) |
+| `Detail -SplitByTagChange` | Una fila por juego de tags histórico, con `FirstDate`/`LastDate`. Los días sin tags son un juego más y sí parten el recurso |
+| `Raw` | Los del día del cargo; `-TagsFromInventory` usa los de hoy |
+
+- Los nombres de tag no distinguen mayúsculas, como en Azure. Los diccionarios
+  de tags son `@{}` (case-insensitive); no los cambies por un tipo que distinga.
+- Un tag con valor vacío no cuenta como tag. `-Untagged` es "sin ningún tag" y
+  excluye a `-ResourceGroup` y `-Tag`.
+- `Tags` es hashtable, para filtrar. `-TagsAsJson` (inventario y `Detail`) la
+  convierte al final en JSON compacto con llaves en orden ordinal, porque
+  `Export-Csv` escribiría `System.Collections.Hashtable`.
+- Columnas de tags (`-TagColumn`) con el nombre tal cual; solo si chocan con una
+  propiedad o columna existente se les antepone `tag_`.
+- El autocompletado de `-Tag` y `-TagColumn` se registra con
+  `Register-ArgumentCompleter`, no con `[ArgumentCompleter()]`: en el módulo
+  compilado el scriptblock del atributo no queda ligado al módulo y no ve las
+  funciones privadas.
 
 **El cruce entre costos e inventario es por ResourceId en minúsculas.** ARG
 devuelve `/resourcegroups/` en minúsculas; el detalle usa `/resourceGroups/`.
-Bug #1 de este tipo de pipeline; cubierto por pruebas.
+Es el error más común de este tipo de cruce; cubierto por pruebas.
 
-**Los resource groups se agrupan sin distinguir mayúsculas.** Los recursos
-borrados traen el casing del CSV y los vigentes el de ARG; sin normalizar, un
-mismo RG sale partido en varias filas. Pasó con datos reales.
+**Los resource groups se comparan sin distinguir mayúsculas.** Los recursos
+borrados traen el casing del detalle y los vigentes el de ARG.
 
 **El mapeo de columnas tolera FOCUS y ActualCost legacy**, sin distinguir
 mayúsculas (la Cost Details API entrega camelCase). Difieren en costo
 (`EffectiveCost` vs `CostInBillingCurrency`), resource group
 (`x_ResourceGroupName` vs `ResourceGroup`) y sobre todo en tags: **FOCUS
-entrega JSON con llaves, el legacy SIN llaves envolventes**.
+entrega JSON con llaves, el legacy puede venir SIN llaves envolventes**.
 
-**Los nombres de tag no distinguen mayúsculas**, como en Azure. Los
-diccionarios de tags son `@{}` (case-insensitive); no los cambies por un tipo
-que distinga.
+**Pipelines y triggers de Data Factory se suman a su factory.** Tienen
+ResourceId propio con costo pero ARG no los inventaría. Es una lista explícita
+(`ChildToParentTypes`), no una regla genérica: una base SQL que no está en ARG
+es una base borrada y debe seguir visible como tal. Con `-SplitByTagChange`
+llevan los tags que su factory tuvo ese día.
 
-**Pipelines y triggers de Data Factory se suman a su factory** y toman sus
-tags. Tienen ResourceId propio con costo pero ARG no los inventaría. Es una
-lista explícita (`ChildToParentTypes`), no una regla genérica: una base SQL
-que no está en ARG es una base borrada y debe seguir visible como tal.
+**Los cargos sin ResourceId** (Marketplace, soporte, reservas) salen en `Detail`
+como filas sin recurso, agrupados por servicio y tipo de cargo, para no
+perderlos del total.
 
 **El export crudo escribe el CSV directo** con `StreamWriter`, en el mismo
-formato que `Export-Csv`: crear un PSCustomObject por fila (20 mil filas × 60
-columnas en un mes real) es varias veces más lento.
+formato que `Export-Csv`: crear un PSCustomObject por fila es varias veces más
+lento con decenas de miles de filas.
 
 **Orden ordinal (`SortOrdinal`) donde el orden importa.** `Sort-Object` usa
 reglas de la cultura y ordena distinto según la máquina.
 
-**Trampas de PowerShell que ya mordieron:**
+## Trampas de PowerShell en este código
+
 - Una variable local `$resourceGroup` es la misma que el parámetro
   `-ResourceGroup` (no distingue mayúsculas) y pisa el filtro.
 - `Nullable[datetime]` se desenvuelve solo: `.Value` devuelve `$null`.
@@ -127,25 +147,23 @@ reglas de la cultura y ordena distinto según la máquina.
   (ICU ignora el nulo): usar `[StringComparison]::Ordinal`.
 - `$null | ForEach-Object` corre una vez; usar `foreach` cuando la colección
   puede ser nula.
-- `Update-CallerPreference` (helper estándar) busca la llave `Warning` y no
-  `WarningAction`, así que `-WarningAction` no surte efecto; y su
+- `Update-CallerPreference` (helper de la plantilla) busca la llave `Warning` y
+  no `WarningAction`, así que `-WarningAction` no surte efecto; y su
   `Set-Variable` obedece `-WhatIf` (por eso `Clear-KnowITAzCostsCache` apaga
   `$WhatIfPreference` mientras lo llama).
+- `-ErrorVariable` no sirve para contar errores: también junta los que la
+  función atrapa en su propio `try/catch`. Las pruebas cuentan los
+  `ErrorRecord` del stream (`2>&1`) con `-ErrorAction Continue` explícito.
 
-**`-ErrorVariable` no sirve para contar errores en las pruebas.** También junta
-los que la función atrapa en su propio `try/catch`. Las pruebas cuentan los
-`ErrorRecord` del stream (`2>&1`) con `-ErrorAction Continue` explícito:
-`Update-CallerPreference` toma la preferencia del script, no de una función
-auxiliar.
+## Pruebas
 
-## Estado de verificación
-
-| Componente | Estado |
+| Prueba | Qué cubre |
 |---|---|
-| `tests/Verificar.ps1` | 108 verificaciones con datos sintéticos en un caché temporal, sin Azure; esperados calculados por separado. Pasan |
-| `tests/Probar-Azure.ps1` | Pasa contra una suscripción CSP real con acceso delegado (sept 2026): ~1,500 recursos con paginación correcta, 17 suscripciones sin `-SubscriptionId`, detalle desde caché cuadra con los totales ya validados, export crudo de 20,709 filas en ~2 s y suma igual que el detalle |
-| Descarga de la Cost Details API | Probada de punta a punta en la iteración anterior (202, sondeo, manifiesto, CSV de 21 MB); la lógica pasó igual a `SaveCostDetailReport` |
-| Compilado con `dev-build.ps1` | Importa por nombre, exporta los 4 comandos, autocompletado funciona |
+| `tests/Verificar.ps1` | 108 verificaciones de los cuatro comandos con datos sintéticos sembrados en un caché temporal. No toca Azure. Los valores esperados se calcularon por separado, no con el código que se prueba |
+| `tests/Probar-Azure.ps1` | Llamadas reales con la sesión de Az activa: paginación de Resource Graph, caché, y que el export crudo sume lo mismo que el detalle. Solo descarga de la Cost Details API con `-IncludeCostDetail`, porque gasta la consulta del día |
+
+Después de un cambio corre `Verificar.ps1` y compila con `dev-build.ps1`: el
+módulo compilado debe exportar solo los cuatro comandos.
 
 ## Hechos ya verificados — no re-investigar
 
@@ -155,23 +173,24 @@ auxiliar.
   scope de resource group ni management group**, solo `ActualCost` o
   `AmortizedCost`, nunca FOCUS. Responde 202 + `Location` + `Retry-After`;
   los `blobLink` del manifiesto traen SAS.
+- CSV de la Cost Details API: fecha `MM/dd/yyyy`, resource group en
+  `resourceGroupName`, tags como JSON con llaves. Las filas no vienen en orden
+  de fecha, y hay días sin tags en recursos que sí los tienen.
 - Permisos: para costos a scope de suscripción Microsoft pide al menos Cost
   Management Reader (o Contributor); el inventario de ARG necesita Reader
   aparte. Asignar roles requiere User Access Administrator u Owner.
 - CSP: el partner debe activar la política de cost visibility por cliente;
   sin ella la API devuelve 403. Con ella, cualquier usuario con RBAC sobre la
-  suscripción (del tenant del cliente o por Lighthouse) ve costos a precio
-  retail de pay-as-you-go, sin descuentos ni créditos del partner.
-- Azure Lighthouse solo aplica a llamadas de `management.azure.com`, no a data
-  plane. Soporta roles built-in excepto Owner y los que tienen DataActions.
-- Tag inheritance existe para EA/MCA/MPA, **no** para pay-as-you-go. No es
-  retroactivo más allá del mes en curso. Por default el tag del recurso gana
-  sobre el heredado. No se configura por ARM.
+  suscripción ve costos a precio retail de pay-as-you-go, sin descuentos ni
+  créditos del partner.
+- Azure Lighthouse: el token del tenant que administra sirve para las
+  suscripciones delegadas. Solo aplica a llamadas de `management.azure.com`,
+  no a data plane.
+- Tag inheritance de Cost Management existe para EA/MCA/MPA, no para
+  pay-as-you-go, y no es retroactivo más allá del mes en curso. Si está
+  activo, los tags del detalle ya lo reflejan.
 - Roles: Reader `acdd72a7-3385-48ef-bd42-f606fba81ae7`,
-  Cost Management Reader `72fafb9e-0641-4937-9268-a91bfd8191a3`,
-  Tag Contributor `4a9ae827-6dc8-4573-8ac7-8239d42aa03f`.
-- CSV real de la Cost Details API (CSP): fecha `MM/dd/yyyy`, resource group
-  en `resourceGroupName`, tags como JSON con llaves.
+  Cost Management Reader `72fafb9e-0641-4937-9268-a91bfd8191a3`.
 
 ## Convenciones
 
@@ -180,4 +199,5 @@ auxiliar.
   `Connect-AzAccount` (usuario o managed identity).
 - Antes de sugerir un comando o parámetro de Azure, verifícalo. Por eso hay
   una sección de hechos verificados.
-- Datos reales solo en `salidas/` o en el caché, nunca en el repo.
+- Los datos reales nunca entran al repo: viven en el caché o en `salidas/`,
+  que git ignora.

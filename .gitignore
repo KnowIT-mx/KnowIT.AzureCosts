@@ -8,7 +8,7 @@ out
 # Local environment files
 .env
 
-# Datos reales de suscripciones: nada de esto entra al repo.
+# Datos locales de suscripciones se excluyen del repo
 salidas/
 *.xlsx
 detalle-*.csv

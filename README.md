@@ -121,7 +121,7 @@ exportar, `Get-KnowITAzCostsResourceInventory` y `Get-KnowITAzCostsDetail`
 tienen dos opciones, que se pueden combinar:
 
 ```powershell
-# Tags como JSON en una sola columna: {"Environment":"Production","Owner":"pepe"}
+# Tags como JSON en una sola columna: {"Environment":"Production","Owner":"Equipo-FinOps"}
 Get-KnowITAzCostsDetail -Month 2026-08 -SubscriptionId $sub -TagsAsJson | Export-Csv costos.csv
 
 # Algunos tags en su propia columna (solo Get-KnowITAzCostsDetail)
@@ -191,7 +191,7 @@ par ya escrito como hashtable: `@{ Environment = 'Production' }`.
 
 ## Caché
 
-El caché vive en `~/.Azure/KnowIT.AzureCosts`, junto a los archivos de Az, con
+El caché está en `~/.knowit/KnowIT.AzureCosts`, en el perfil del usuario, con
 una carpeta por suscripción. Cada usuario mantiene el suyo.
 
 | Dato | Vigencia |
