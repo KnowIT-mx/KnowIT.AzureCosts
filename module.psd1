@@ -13,6 +13,8 @@
         PowerShellVersion = 7.4
         CompanyName       = 'KnowIT Soluciones'
         Copyright         = '(c) 2026 KnowIT Soluciones'
+        ProjectUri        = 'https://github.com/KnowIT-mx/KnowIT.AzureCosts'
+        LicenseUri        = 'https://github.com/KnowIT-mx/KnowIT.AzureCosts/blob/master/LICENSE'
         Tags              = 'Azure', 'CostManagement', 'FinOps', 'Tagging', 'Cost'
     }
 }

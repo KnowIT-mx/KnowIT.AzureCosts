@@ -1,0 +1,46 @@
+name: $(Date:yyMM)$(Rev:rrr)
+
+trigger:
+  branches:
+    include:
+    - master
+  paths:
+    include:
+    - src
+    - module.psd1
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+jobs:
+- job: BuildAndPublish
+  displayName: Build Module and publish to PSGallery
+
+  variables:
+  - group: KnowITPS
+
+  steps:
+  - checkout: self
+    fetchDepth: 0
+
+  - pwsh: |
+      $PSVersionTable
+      Install-PSResource KnowIT.Builder -Prerelease -TrustRepository -PassThru
+    displayName: Install KnowIT.Builder Module
+
+  - pwsh: Build-KnowITModule -BuildNumber $(Build.BuildNumber)
+    displayName: Build Module
+
+  - pwsh: |
+      Get-PSResourceRepository
+      Publish-PSResource -Path ./out/KnowIT.AzureCosts -Repository PSGallery -ApiKey $env:PSGallery_ApiKey
+    env:
+      PSGallery_ApiKey: $(PSGallery.ApiKey)
+    displayName: Publish to PSGallery
+
+  - script: |
+      git push --prune https://$GITHUB_PAT@github.com/KnowIT-mx/KnowIT.AzureCosts \
+      +refs/remotes/origin/master:refs/heads/master +refs/tags/*:refs/tags/*
+    env:
+      GITHUB_PAT: $(GitHub.PAT)
+    displayName: Update GitHub Repository
