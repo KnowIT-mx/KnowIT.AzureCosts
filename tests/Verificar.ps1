@@ -92,7 +92,7 @@ try {
     Check 'acepta suscripciones por pipeline' @([PSCustomObject]@{ Id = $sub } | Get-KnowITAzCostsResourceInventory).Count 13
     $json = @(Get-KnowITAzCostsResourceInventory -SubscriptionId $sub -TagsAsJson)
     $vm = $json | Where-Object Name -eq 'vm-app-01'
-    Check '-TagsAsJson: JSON compacto con llaves en orden' $vm.Tags '{"CostCenter":"IT-100","Environment":"prod","Owner":"pepe"}'
+    Check '-TagsAsJson: JSON compacto con llaves en orden' $vm.Tags '{"CostCenter":"IT-100","Environment":"prod","Owner":"Equipo-FinOps"}'
     Check '-TagsAsJson: sin tags queda {}' ($json | Where-Object Name -eq 'nsg-app').Tags '{}'
     Check '-TagsAsJson: Export-Csv escribe el JSON' ((($json | Where-Object Name -eq 'vm-app-01') | ConvertTo-Csv)[1] -match 'CostCenter') $true
     Check '-TagsAsJson con -Untagged' (@(Get-KnowITAzCostsResourceInventory -SubscriptionId $sub -Untagged -TagsAsJson | Where-Object Tags -ne '{}').Count) 0
@@ -113,10 +113,10 @@ try {
 
         $vm = $detail | Where-Object ResourceName -eq 'vm-app-01'
         Check 'cruce por casing distinto toma el resource group de ARG' $vm.ResourceGroup 'rg-prod-app'
-        Check 'recurso vigente: tags de hoy' $vm.Tags['Owner'] 'pepe'
+        Check 'recurso vigente: tags de hoy' $vm.Tags['Owner'] 'Equipo-FinOps'
         $deleted = $detail | Where-Object ResourceName -eq 'vm-migracion-tmp'
         Check 'recurso borrado: sigue visible' ([bool]($deleted -and !$deleted.ExistsInInventory)) $true
-        Check 'recurso borrado: tags del cargo' $deleted.Tags['Owner'] 'pepe'
+        Check 'recurso borrado: tags del cargo' $deleted.Tags['Owner'] 'Equipo-FinOps'
 
         $range = @(Get-KnowITAzCostsDetail -StartDate 2026-08-01 -EndDate 2026-08-10 -SubscriptionId $sub -Metric $case.Metric)
         Check 'rango de fechas dentro del mes' ($range | Measure-Object Cost -Sum).Sum $case.Range 0.001
@@ -142,19 +142,19 @@ try {
 
     $withColumns = @(Get-KnowITAzCostsDetail -Month 2026-08 -SubscriptionId $sub -TagColumn Owner, Location)
     $vm = $withColumns | Where-Object ResourceName -eq 'vm-app-01'
-    Check '-TagColumn agrega la propiedad' $vm.Owner 'pepe'
+    Check '-TagColumn agrega la propiedad' $vm.Owner 'Equipo-FinOps'
     Check '-TagColumn que choca con una propiedad usa tag_' ([bool]($vm.PSObject.Properties['tag_Location'])) $true
     Check '-TagColumn no pisa la propiedad original' $vm.Location 'eastus'
     $json = @(Get-KnowITAzCostsDetail -Month 2026-08 -SubscriptionId $sub -Tag @{ Environment = 'prod' } -TagColumn Owner -TagsAsJson)
     Check '-TagsAsJson en el detalle: filtra antes de convertir' $json.Count 3
-    Check '-TagsAsJson en el detalle: -TagColumn sigue funcionando' (@($json.Owner | Sort-Object -Unique) -join ',') 'pepe'
+    Check '-TagsAsJson en el detalle: -TagColumn sigue funcionando' (@($json.Owner | Sort-Object -Unique) -join ',') 'Equipo-FinOps'
     Check '-TagsAsJson en el detalle: Tags es texto' ($json[0].Tags -is [string]) $true
 
     $crossing = Split-Output (Get-KnowITAzCostsDetail -StartDate 2026-07-25 -EndDate 2026-08-03 -SubscriptionId $sub -ErrorAction Continue 2>&1 3>$null)
     Check 'rango que cruza meses: mes sin datos no es error' $crossing.Errors.Count 0
     Check 'rango que cruza meses: una fila por recurso por mes' (@($crossing.Values.Month | Sort-Object -Unique) -join ',') '2026-08'
 
-    $bad = Split-Output (Get-KnowITAzCostsDetail -Month 2026-08 -SubscriptionId $sub -Untagged -Tag @{ Owner = 'pepe' } -ErrorAction Continue 2>&1)
+    $bad = Split-Output (Get-KnowITAzCostsDetail -Month 2026-08 -SubscriptionId $sub -Untagged -Tag @{ Owner = 'Equipo-FinOps' } -ErrorAction Continue 2>&1)
     Check '-Untagged con -Tag es error' $bad.Errors.Count 1
     $bad = Split-Output (Get-KnowITAzCostsDetail -Month 2099-01 -SubscriptionId $sub -ErrorAction Continue 2>&1)
     Check 'mes futuro es error' $bad.Errors.Count 1
@@ -189,7 +189,59 @@ try {
     Check 'factory borrada sin filas propias hereda tags de sus hijos' $g.Tags['Owner'] 'dwh'
     Check 'base SQL borrada NO se suma a su servidor' @($adf | Where-Object ResourceName -eq 'temp-01').Count 1
     Check 'el total no cambia' ($adf | Measure-Object Cost -Sum).Sum 25.0
+    $adfSplit = @(Get-KnowITAzCostsDetail -Month 2026-08 -SubscriptionId $subAdf -SplitByTagChange)
+    $f = @($adfSplit | Where-Object ResourceName -eq 'adf-1')
+    Check 'split: pipeline y trigger siguen los tags de la factory ese dia' "$($f.Count) $($f[0].Tags['Environment'])=$($f[0].Cost)" '1 Prod=13'
+    Check 'split: factory borrada sin filas propias usa los tags del hijo' ($adfSplit | Where-Object ResourceName -eq 'adf-borrada').Tags['Owner'] 'dwh'
     Check 'varias suscripciones en una llamada' @(Get-KnowITAzCostsDetail -Month 2026-08 -SubscriptionId $sub, $subAdf | Select-Object -ExpandProperty SubscriptionId -Unique).Count 2
+
+    # --- tags que cambian dentro del mes -----------------------------------------------------
+    Write-Host "`n--- tags que cambian dentro del mes ---"
+    $subTags = '33333333-4444-5555-6666-777777777777'
+    $base = "/subscriptions/$subTags/resourceGroups/RG-T/providers/Microsoft.Compute/virtualMachines"
+    $row = { param($name, $day, $cost, $tags) [PSCustomObject]@{ ResourceId = "$base/$name"; ResourceName = $name; Date = "2026-08-{0:d2}" -f $day; CostInBillingCurrency = "$cost"; Tags = $tags } }
+    $rows = @(
+        # vm-hoy: existe hoy con tags; en el mes tuvo Viejo (dias 1-10) y Nuevo (11-20), y el
+        # dia 15 viene sin tags, como pasa en el detalle real.
+        foreach($d in 1..10) { & $row 'vm-hoy' $d 1 '{"Env":"Viejo"}' }
+        foreach($d in 11..20) { & $row 'vm-hoy' $d 2 ($d -eq 15 ? '' : '{"Env":"Nuevo"}') }
+        # vm-sin-tags-hoy: existe hoy sin tags, pero en el mes si los tuvo.
+        & $row 'vm-sin-tags-hoy' 3 5 '{"Env":"Prod"}'
+        # vm-borrada: filas fuera de orden, como las entrega la API: el ultimo tag es el del dia 20.
+        & $row 'vm-borrada' 20 4 '{"Env":"Ultimo"}'
+        & $row 'vm-borrada' 5 3 '{"Env":"Primero"}'
+        # vm-tardia: borrada, sin tags los primeros dias y etiquetada despues.
+        foreach($d in 1..3) { & $row 'vm-tardia' $d 1 '' }
+        & $row 'vm-tardia' 4 1 '{"Env":"X"}'
+    )
+    $csv = New-NoCsv $rows
+    Set-CachedCost $subTags 'ActualCost' '2026-08' $csv
+    Remove-Item $csv
+    Set-CachedInventory $subTags @(
+        @{ id = "$base/vm-hoy".ToLowerInvariant(); name = 'vm-hoy'; type = 'microsoft.compute/virtualmachines'; resourceGroup = 'rg-t'; location = 'eastus'; subscriptionId = $subTags; tags = @{ Env = 'Hoy' } }
+        @{ id = "$base/vm-sin-tags-hoy".ToLowerInvariant(); name = 'vm-sin-tags-hoy'; type = 'microsoft.compute/virtualmachines'; resourceGroup = 'rg-t'; location = 'eastus'; subscriptionId = $subTags; tags = @{} }
+    )
+
+    $default = @(Get-KnowITAzCostsDetail -Month 2026-08 -SubscriptionId $subTags)
+    $byName = @{}; foreach($d in $default) { $byName[$d.ResourceName] = $d }
+    Check 'sin split: una fila por recurso' $default.Count 4
+    Check 'existe hoy con tags: manda el de hoy' $byName['vm-hoy'].Tags['Env'] 'Hoy'
+    Check 'existe hoy sin tags: se queda sin tags' $byName['vm-sin-tags-hoy'].Tags.Count 0
+    Check 'borrado: el ultimo por fecha, no por orden de fila' $byName['vm-borrada'].Tags['Env'] 'Ultimo'
+    Check 'sin split no agrega FirstDate' ([bool]$default[0].PSObject.Properties['FirstDate']) $false
+
+    $split = @(Get-KnowITAzCostsDetail -Month 2026-08 -SubscriptionId $subTags -SplitByTagChange)
+    $hoy = @($split | Where-Object ResourceName -eq 'vm-hoy' | Sort-Object { $_.Tags['Env'] })
+    Check 'split: una fila por juego de tags, dia sin tags incluido' $hoy.Count 3
+    Check 'split: usa los tags historicos aunque exista hoy' (($hoy | ForEach-Object { "$($_.Tags['Env'])=$($_.Cost)" }) -join ',') '=2,Nuevo=18,Viejo=10'
+    Check 'split: el dia sin tags es su propio segmento' "$($hoy[0].FirstDate.ToString('dd'))-$($hoy[0].LastDate.ToString('dd'))" '15-15'
+    Check 'split: FirstDate y LastDate de un juego' "$($hoy[1].FirstDate.ToString('dd'))-$($hoy[1].LastDate.ToString('dd'))" '11-20'
+    Check 'split: borrado con dos tags' @($split | Where-Object ResourceName -eq 'vm-borrada').Count 2
+    $late = @($split | Where-Object ResourceName -eq 'vm-tardia' | Sort-Object FirstDate)
+    Check 'split: dias iniciales sin tags son otro segmento' (($late | ForEach-Object { "$($_.Tags['Env'])=$($_.Cost)" }) -join ',') '=3,X=1'
+    Check 'sin split: borrado toma el ultimo con valor' $byName['vm-tardia'].Tags['Env'] 'X'
+    Check 'split: el total no cambia' ($split | Measure-Object Cost -Sum).Sum ($default | Measure-Object Cost -Sum).Sum
+    Check 'split: se puede filtrar por el tag historico' @(Get-KnowITAzCostsDetail -Month 2026-08 -SubscriptionId $subTags -SplitByTagChange -Tag @{ Env = 'Viejo' }).Count 1
 
     # --- export crudo ------------------------------------------------------------------------
     Write-Host "`n--- Export-KnowITAzCostsRaw ---"
@@ -217,8 +269,8 @@ try {
     Write-Host "`n--- funciones internas ---"
     & $module {
         param($check)
-        & $check 'tags legacy sin llaves' ((ConvertFromTagsText '"Owner": "pepe", "Env": "prod"').Env) 'prod'
-        & $check 'tags focus con llaves' ((ConvertFromTagsText '{"Owner":"pepe"}').Owner) 'pepe'
+        & $check 'tags legacy sin llaves' ((ConvertFromTagsText '"Owner": "Equipo-FinOps", "Env": "prod"').Env) 'prod'
+        & $check 'tags focus con llaves' ((ConvertFromTagsText '{"Owner":"Equipo-FinOps"}').Owner) 'Equipo-FinOps'
         & $check 'tags vacios' (ConvertFromTagsText '').Count 0
         & $check 'tags corruptos no revientan' (ConvertFromTagsText '{"a": ').Count 0
         & $check 'costo en notacion cientifica' (ConvertToCostNumber '1.5E-3') 0.0015 1e-12

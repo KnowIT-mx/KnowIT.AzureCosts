@@ -8,7 +8,7 @@
       "location": "eastus",
       "tags": {
         "CostCenter": "IT-100",
-        "Owner": "pepe",
+        "Owner": "Equipo-FinOps",
         "Environment": "prod"
       }
     },
@@ -20,7 +20,7 @@
       "location": "eastus",
       "tags": {
         "CostCenter": "IT-100",
-        "Owner": "pepe",
+        "Owner": "Equipo-FinOps",
         "Environment": "prod"
       }
     },
@@ -32,7 +32,7 @@
       "location": "eastus",
       "tags": {
         "CostCenter": "IT-100",
-        "Owner": "pepe"
+        "Owner": "Equipo-FinOps"
       }
     },
     {
@@ -91,7 +91,7 @@
       "location": "eastus",
       "tags": {
         "CostCenter": "IT-100",
-        "Owner": "pepe",
+        "Owner": "Equipo-FinOps",
         "Environment": "prod"
       }
     },
@@ -110,7 +110,7 @@
       "resourceGroup": "rg-red",
       "location": "eastus",
       "tags": {
-        "Owner": "pepe"
+        "Owner": "Equipo-FinOps"
       }
     },
     {

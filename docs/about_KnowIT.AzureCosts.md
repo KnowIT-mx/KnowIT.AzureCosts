@@ -40,11 +40,11 @@ Customer Agreement (incluye CSP). Pay-as-you-go no está soportado.
 
 ### Caché
 
-El caché vive en `~/.Azure/KnowIT.AzureCosts`, junto a los archivos de Az, con una carpeta
+El caché está en `~/.knowit/KnowIT.AzureCosts`, en el perfil del usuario, con una carpeta
 por suscripción. Cada usuario mantiene el suyo y sobrevive a reinicios.
 
 ```
-~/.Azure/KnowIT.AzureCosts/<suscripción>/
+~/.knowit/KnowIT.AzureCosts/<suscripción>/
     inventory-<yyyy-MM-dd>.json          inventario del día
     cost-<métrica>-<yyyy-MM>.json        manifiesto del mes
     cost-<métrica>-<yyyy-MM>-partN.csv   detalle tal como lo entrega la API
@@ -89,7 +89,7 @@ Cada comando usa los tags de un momento distinto:
 | Comando | Tags |
 |---|---|
 | `Get-KnowITAzCostsResourceInventory` | Los de hoy. |
-| `Get-KnowITAzCostsDetail` | Los de hoy si el recurso sigue existiendo, porque son los que alguien va a corregir; si ya no existe, los que tenía cuando generó el cargo. |
+| `Get-KnowITAzCostsDetail` | Los de hoy si el recurso existe, aunque no tenga ninguno, porque son los que alguien va a corregir; si ya no existe, los últimos con valor que tuvo en el periodo. Con `-SplitByTagChange`, los históricos: una fila por cada juego de tags que tuvo, incluidos los días sin tags. |
 | `Export-KnowITAzCostsRaw` | Los que tenía el recurso el día del cargo. Con `-TagsFromInventory`, los de hoy para los recursos que siguen existiendo. |
 
 **Filtros.** `-Tag @{ Nombre = 'valor' }` exige que se cumplan todos los pares, y los valores

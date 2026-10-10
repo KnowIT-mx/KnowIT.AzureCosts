@@ -121,7 +121,7 @@ exportar, `Get-KnowITAzCostsResourceInventory` y `Get-KnowITAzCostsDetail`
 tienen dos opciones, que se pueden combinar:
 
 ```powershell
-# Tags como JSON en una sola columna: {"Environment":"Production","Owner":"pepe"}
+# Tags como JSON en una sola columna: {"Environment":"Production","Owner":"Equipo-FinOps"}
 Get-KnowITAzCostsDetail -Month 2026-08 -SubscriptionId $sub -TagsAsJson | Export-Csv costos.csv
 
 # Algunos tags en su propia columna (solo Get-KnowITAzCostsDetail)
@@ -166,8 +166,21 @@ lo deja vacío. Acepta los mismos periodos y filtros que
 | Comando | Tags |
 |---|---|
 | `Get-KnowITAzCostsResourceInventory` | Los de hoy |
-| `Get-KnowITAzCostsDetail` | Los de hoy si el recurso sigue existiendo, porque son los que alguien va a corregir; si ya no existe, los que tenía cuando generó el cargo |
+| `Get-KnowITAzCostsDetail` | Ver la tabla siguiente |
 | `Export-KnowITAzCostsRaw` | Los que tenía el recurso el día del cargo. Con `-TagsFromInventory`, los de hoy para los recursos que siguen existiendo |
+
+En `Get-KnowITAzCostsDetail`:
+
+| Caso | Sin `-SplitByTagChange`: una fila por recurso | Con `-SplitByTagChange`: una fila por juego de tags |
+|---|---|---|
+| El recurso existe hoy con tags | Los tags de hoy | Los tags que tuvo cada día del periodo |
+| El recurso existe hoy sin tags | Sin tags | Los tags que tuvo cada día del periodo |
+| El recurso fue borrado | Los últimos tags con valor del periodo | Los tags que tuvo cada día del periodo |
+| Días en que el detalle viene sin tags | No cuentan | Forman su propia fila, sin tags |
+| Pipelines y triggers de Data Factory | Se suman a su factory | Llevan los tags que la factory tuvo ese día; si la factory no tiene cargos ese día, los suyos |
+
+Con `-SplitByTagChange` cada fila trae además `FirstDate` y `LastDate`: el primer
+y el último día con ese juego de tags. El costo total es el mismo en ambos modos.
 
 Los nombres de tag no distinguen mayúsculas, como en Azure. Un tag con valor
 vacío no cuenta como etiquetado.
@@ -178,7 +191,7 @@ par ya escrito como hashtable: `@{ Environment = 'Production' }`.
 
 ## Caché
 
-El caché vive en `~/.Azure/KnowIT.AzureCosts`, junto a los archivos de Az, con
+El caché está en `~/.knowit/KnowIT.AzureCosts`, en el perfil del usuario, con
 una carpeta por suscripción. Cada usuario mantiene el suyo.
 
 | Dato | Vigencia |

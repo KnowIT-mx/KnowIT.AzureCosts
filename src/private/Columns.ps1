@@ -41,8 +41,8 @@ function NewColumnMap ([string[]]$Headers)
 
 function ConvertFromTagsText ([string]$Text)
 {
-    # FOCUS entrega Tags como JSON: {"Owner":"pepe"}
-    # El export legacy a veces lo entrega SIN llaves: "Owner": "pepe", "Env": "prod"
+    # FOCUS entrega Tags como JSON: {"Owner":"Equipo-FinOps"}
+    # El export legacy a veces lo entrega SIN llaves: "Owner": "Equipo-FinOps", "Env": "prod"
     # Esta diferencia es la causa clasica de reportar todo como sin etiquetar.
     $tags = @{}
     if([string]::IsNullOrWhiteSpace($Text)) { return $tags }

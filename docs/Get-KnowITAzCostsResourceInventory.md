@@ -172,7 +172,7 @@ Accept wildcard characters: False
 ### -TagsAsJson
 
 Entrega la propiedad `Tags` como texto JSON compacto en lugar de hashtable, listo para
-`Export-Csv`: `{"Environment":"Production","Owner":"pepe"}`. Los tags van en orden alfabético
+`Export-Csv`: `{"Environment":"Production","Owner":"Equipo-FinOps"}`. Los tags van en orden alfabético
 y un recurso sin tags queda como `{}`.
 
 ```yaml

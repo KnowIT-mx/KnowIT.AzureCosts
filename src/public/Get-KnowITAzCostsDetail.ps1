@@ -14,9 +14,9 @@ function Get-KnowITAzCostsDetail {
         vez al dia por suscripcion. Los meses cerrados quedan en cache de forma permanente;
         el mes en curso se renueva cada 24 horas.
 
-        Tags: si el recurso existe hoy se usan sus tags actuales, que son los que alguien va a
-        corregir; si ya no existe, los que tenia cuando genero el cargo. Los pipelines y
-        triggers de Data Factory se suman a su factory.
+        Tags: si el recurso existe hoy se usan sus tags de hoy, aunque no tenga ninguno: son los
+        que alguien va a corregir. Si ya no existe, los ultimos con valor que tuvo en el
+        periodo. Los pipelines y triggers de Data Factory se suman a su factory.
 
     .PARAMETER Month
         Uno o varios meses en formato yyyy-MM. Alias: -Period.
@@ -52,9 +52,15 @@ function Get-KnowITAzCostsDetail {
     .PARAMETER Tenant
         Tenant para pedir el token. Sin el se usa el de la sesion de Az.
 
+    .PARAMETER SplitByTagChange
+        Si un recurso cambio de tags dentro del mes, devuelve una fila por cada juego de tags
+        que tuvo, con el costo de esos dias y las propiedades FirstDate y LastDate. Usa los tags
+        historicos del detalle aunque el recurso exista hoy; los dias sin tags forman su propia
+        fila. Los pipelines y triggers de Data Factory siguen los tags que su factory tuvo ese dia.
+
     .PARAMETER TagsAsJson
         Entrega la propiedad Tags como texto JSON compacto en vez de hashtable, lista para
-        Export-Csv: {"Environment":"Production","Owner":"pepe"}. Sin tags queda {}.
+        Export-Csv: {"Environment":"Production","Owner":"Equipo-FinOps"}. Sin tags queda {}.
 
     .PARAMETER Force
         Vuelve a descargar el detalle y el inventario aunque esten en cache.
@@ -97,6 +103,8 @@ function Get-KnowITAzCostsDetail {
 
         [switch]$TagsAsJson,
 
+        [switch]$SplitByTagChange,
+
         [ValidateSet('ActualCost', 'AmortizedCost')]
         [string]$Metric = 'ActualCost',
 
@@ -131,7 +139,7 @@ function Get-KnowITAzCostsDetail {
 
                     Write-Verbose "Leyendo detalle de $($period.Month) de $subscription..."
                     $data = ReadCostRows $files
-                    $items = MergeResourceCost -SubscriptionId $subscription -Period $period -Rows $data.Rows -Headers $data.Headers -InventoryIndex $inventoryIndex
+                    $items = MergeResourceCost -SubscriptionId $subscription -Period $period -Rows $data.Rows -Headers $data.Headers -InventoryIndex $inventoryIndex -SplitByTagChange:$SplitByTagChange
                     foreach($item in $items) {
                         if(TestItemFilter -ResourceGroup $item.ResourceGroup -Tags $item.Tags -ResourceGroupFilter $ResourceGroup -Untagged:$Untagged -TagFilter $Tag) {
                             $results.Add($item)

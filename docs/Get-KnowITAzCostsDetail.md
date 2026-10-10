@@ -24,6 +24,7 @@ Get-KnowITAzCostsDetail
    [-Tag <Hashtable>]
    [-TagColumn <String[]>]
    [-TagsAsJson]
+   [-SplitByTagChange]
    [-Metric <String>]
    [-Tenant <String>]
    [-Force]
@@ -42,6 +43,7 @@ Get-KnowITAzCostsDetail
    [-Tag <Hashtable>]
    [-TagColumn <String[]>]
    [-TagsAsJson]
+   [-SplitByTagChange]
    [-Metric <String>]
    [-Tenant <String>]
    [-Force]
@@ -60,8 +62,12 @@ después sobre ese detalle, sin volver a consultar Azure. Ver
 
 El detalle se combina con el inventario de recursos del día para:
 
-- **Tags:** si el recurso existe hoy, se usan sus tags actuales, que son los que alguien va a
-  corregir. Si ya no existe, se usan los que tenía cuando generó el cargo.
+- **Tags:** si el recurso existe hoy, se usan sus tags de hoy, **aunque no tenga ninguno**:
+  son los que alguien va a corregir. Si ya no existe, se usan los **últimos con valor que
+  tuvo en el periodo**, por fecha.
+- **Cambios de tags en el mes:** por default sale una sola fila por recurso. Con
+  `-SplitByTagChange` sale una fila por cada juego de tags que tuvo, con el costo de esos
+  días.
 - **Recursos borrados:** siguen saliendo, con `ExistsInInventory` en `$false`.
 - **Cargos sin recurso** (Marketplace, soporte, reservas): salen como filas sin
   `ResourceId`, identificadas por `ServiceName` y `ChargeType`.
@@ -129,7 +135,19 @@ Get-KnowITAzCostsDetail -Month 2026-08 -SubscriptionId $sub |
     Sort-Object Cost -Descending
 ```
 
-### Ejemplo 8: Varias suscripciones
+### Ejemplo 8: Recursos que cambiaron de tags en el mes
+
+```powershell
+Get-KnowITAzCostsDetail -Month 2026-08 -SubscriptionId $sub -SplitByTagChange |
+    Group-Object ResourceId | Where-Object Count -gt 1 |
+    ForEach-Object { $_.Group | Sort-Object FirstDate | Select-Object ResourceName, FirstDate, LastDate, Cost, Tags }
+```
+
+Con `-SplitByTagChange`, un recurso que cambió de tags dentro del mes sale en varias filas,
+cada una con el costo de los días en que tuvo esos tags. El ejemplo muestra solo esos
+recursos.
+
+### Ejemplo 9: Varias suscripciones
 
 ```powershell
 Get-AzSubscription | Where-Object Name -like '*Prod*' | Get-KnowITAzCostsDetail -Month 2026-08
@@ -224,6 +242,29 @@ Position: Named
 Default value: None
 Accept pipeline input: False
 Accept wildcard characters: True
+```
+
+### -SplitByTagChange
+
+Si un recurso cambió de tags dentro del mes, devuelve una fila por cada juego de tags que
+tuvo, con el costo de esos días y las propiedades `FirstDate` y `LastDate`. Usa los tags
+históricos del detalle aunque el recurso exista hoy.
+
+Los días sin tags cuentan como un juego más y forman su propia fila. Cualquier diferencia en
+cualquier tag cuenta como cambio. Los pipelines y triggers de Data Factory siguen los tags
+que su factory tuvo ese día; si la factory no tiene filas ese día, usan los suyos. El costo
+total no cambia.
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: False
+Accept pipeline input: False
+Accept wildcard characters: False
 ```
 
 ### -StartDate
@@ -388,7 +429,13 @@ Un objeto por recurso por mes, con estas propiedades:
 | ExistsInInventory | Boolean | `$true` si el recurso existe hoy. |
 | Tags | Hashtable | Tags efectivos (ver la descripción). Con `-TagsAsJson`, texto JSON. |
 
-Con `-TagColumn` se agrega una propiedad más por cada tag indicado.
+Con `-TagColumn` se agrega una propiedad más por cada tag indicado. Con
+`-SplitByTagChange` se agregan:
+
+| Propiedad | Tipo | Descripción |
+|---|---|---|
+| FirstDate | DateTime | Primer día del mes con esos tags. |
+| LastDate | DateTime | Último día del mes con esos tags. |
 
 ## NOTAS
 

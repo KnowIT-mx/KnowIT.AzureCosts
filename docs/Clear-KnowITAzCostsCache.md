@@ -25,7 +25,7 @@ Clear-KnowITAzCostsCache
 ## DESCRIPCIÓN
 
 El cmdlet **Clear-KnowITAzCostsCache** borra archivos del caché local en
-`~/.Azure/KnowIT.AzureCosts`. Sin parámetros borra todo el caché. Con `-SubscriptionId` borra
+`~/.knowit/KnowIT.AzureCosts`. Sin parámetros borra todo el caché. Con `-SubscriptionId` borra
 el caché de esas suscripciones, y con `-Month` solo el detalle de costos de esos meses, de
 todas las métricas, sin tocar el inventario.
 

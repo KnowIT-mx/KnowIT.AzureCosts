@@ -1,4 +1,4 @@
-# Cache local por usuario, junto a los archivos de Az en ~/.Azure: sobrevive reinicios y cada
+# Cache local por usuario en ~/.knowit/KnowIT.AzureCosts: sobrevive reinicios y usuario
 # quien mantiene el suyo. Estructura:
 #   <CacheRoot>/<suscripcion>/inventory-<yyyy-MM-dd>.json          un archivo por dia
 #   <CacheRoot>/<suscripcion>/cost-<metrica>-<yyyy-MM>.json        manifiesto del mes

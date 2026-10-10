@@ -4,7 +4,7 @@ function Clear-KnowITAzCostsCache {
         Borra el cache local de detalle de costos e inventario.
 
     .DESCRIPTION
-        El cache vive en ~/.Azure/KnowIT.AzureCosts, una carpeta por suscripcion. Sin
+        El cache está en ~/.knowit/KnowIT.AzureCosts, una carpeta por suscripcion. Sin
         parametros borra todo el cache. Borrar el detalle de un mes obliga a volver a
         consultar la Cost Details API, que Microsoft pide no usar mas de una vez al dia por
         suscripcion.
